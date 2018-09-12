@@ -1,24 +1,42 @@
 #!/usr/bin/env python
+
 import cv2
 import numpy as np
 import math
+import copy
 
-bgModel = cv2.createBackgroundSubtractorMOG2()
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+
+bg = None
+show_orig = False
 
 while True:
     ret, frame = cap.read()
+    if frame is None:
+        break
 
-    mask = bgModel.apply(frame, learningRate=0)
-    kernel = np.ones((3, 3), np.uint8)
-    mask = cv2.erode(mask, kernel, iterations=1)
-    frame = cv2.bitwise_and(frame, frame, mask=mask)
+    if bg is None:
+        bg = np.copy(frame)
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    diff = cv2.absdiff(frame, bg)
+    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (41, 41), 0)
-    ret, thresh = cv2.threshold(blur, 60, 255, cv2.THRESH_BINARY)
+    ret, thresh = cv2.threshold(blur, 30, 255, cv2.THRESH_BINARY)
+    t = copy.deepcopy(thresh)
+    _, cont, hier = cv2.findContours(t, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    cv2.imshow("", thresh)
+    output = copy.deepcopy(frame)
+    for res in cont:
+        hull = cv2.convexHull(res)
+        cv2.drawContours(output, [res], 0, (0, 255, 0), 2)
+        cv2.drawContours(output, [hull], 0, (0, 0, 255), 3)
+
+    if show_orig:
+        cv2.imshow("", frame)
+    else:
+        cv2.imshow("", output)
+
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
